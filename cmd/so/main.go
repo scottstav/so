@@ -34,15 +34,21 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `so — Scott's orchestrator
+	fmt.Fprintln(os.Stderr, `so — Scott's orchestrator. Launches CLI agents in a shared tmux session.
 
 Usage:
-  so <agent> [name]       launch an agent in a new tmux window
-  so send <window> <msg>  feed a prompt to a running agent
+  so <agent> [name]       launch an agent (e.g. so claude, so cursor)
+  so send <window> <msg>  feed a prompt to an agent's window
+                          (msg may be passed via stdin if "-" or omitted)
   so rename <word>        rename the calling window's task suffix
   so ls                   list active agent windows
+  so -h | --help          show this help
 
-Config: ~/.config/so/agents.conf and ~/.config/so/briefing.md`)
+Configuration files (auto-created on first run):
+  ~/.config/so/agents.conf   agent registry, format: name=command
+  ~/.config/so/briefing.md   text injected as the first prompt at launch
+
+The tmux session is named "so". Windows are named "<agent>@<task>".`)
 }
 
 func runSend(args []string) int {
