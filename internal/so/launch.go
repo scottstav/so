@@ -10,6 +10,11 @@ import (
 type LaunchOpts struct {
 	Agent string // required: key into the agents registry
 
+	// ExtraArgs are appended to the agent's command line, shell-quoted.
+	// E.g. ExtraArgs=[]string{"--resume"} with agent "claude" produces
+	// the command "claude --resume" inside the new tmux window.
+	ExtraArgs []string
+
 	// SkipBriefing skips post-launch briefing injection. Used in tests
 	// where the spawned command is not an interactive TUI.
 	SkipBriefing bool
@@ -40,7 +45,7 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 	if err != nil {
 		return zero, fmt.Errorf("launch: %w", err)
 	}
-	cmd, ok := agents[opts.Agent]
+	baseCmd, ok := agents[opts.Agent]
 	if !ok {
 		return zero, fmt.Errorf("launch: unknown agent %q (known: %s)",
 			opts.Agent, strings.Join(AgentNames(agents), ", "))
@@ -48,6 +53,7 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 	if tx == nil {
 		return zero, fmt.Errorf("launch: internal: tmux is nil")
 	}
+	cmd := buildAgentCommand(baseCmd, opts.ExtraArgs)
 
 	exists, err := tx.SessionExists(session)
 	if err != nil {

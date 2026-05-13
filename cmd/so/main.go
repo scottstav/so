@@ -37,8 +37,10 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `so — Scott's orchestrator. Launches CLI agents in a shared tmux session.
 
 Usage:
-  so <agent> [name]       launch an agent (e.g. so claude, so cursor)
-                          prints the new pane id to stdout
+  so <agent> [-- args...] launch an agent (e.g. so claude, so cursor --resume)
+                          args after the optional '--' are passed verbatim
+                          to the agent's command (e.g. claude --resume).
+                          prints the new pane id to stdout.
   so send <target> <msg>  feed a prompt to an agent's pane
                           <target> = pane id (%42), window (cursor@task), or so:window
                           <msg> may be passed via stdin if "-" or omitted
@@ -97,12 +99,17 @@ func runLs(_ []string) int {
 	return 0
 }
 
-func runLaunch(agent string, _ []string) int {
+func runLaunch(agent string, args []string) int {
+	// Optional `--` separator: `so claude -- --resume`. Strip if present.
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
+	}
 	insideTmux := os.Getenv("TMUX") != ""
 
 	tx := so.DefaultTmux()
 	result, err := so.Launch(tx, sessionName, so.LaunchOpts{
 		Agent:     agent,
+		ExtraArgs: args,
 		SkipFocus: !insideTmux,
 	})
 	if err != nil {

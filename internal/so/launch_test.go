@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLaunch_UnknownAgent(t *testing.T) {
@@ -63,5 +64,51 @@ func TestLaunch_CreatesWindowAndDedupes(t *testing.T) {
 	}
 	if r2.PaneID == r1.PaneID {
 		t.Errorf("expected distinct pane ids, both got %q", r1.PaneID)
+	}
+}
+
+func TestLaunch_PassesExtraArgs(t *testing.T) {
+	tx, teardown := withFreshSession(t)
+	defer teardown()
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	if err := EnsureDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	// Write a tiny script that records its args and then sleeps so the
+	// pane stays alive long enough to capture.
+	scriptDir := t.TempDir()
+	scriptPath := scriptDir + "/recorder"
+	outPath := scriptDir + "/args.txt"
+	script := "#!/bin/bash\nprintf '%s\\n' \"$@\" > " + outPath + "\nsleep 10\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(AgentsConfPath(), []byte("rec="+scriptPath+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Launch(tx, "test-base", LaunchOpts{
+		Agent:        "rec",
+		ExtraArgs:    []string{"--resume", "hello world"},
+		SkipBriefing: true,
+		SkipFocus:    true,
+	})
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+
+	// Poll for the args file (script writes it as soon as it starts).
+	var got []byte
+	for i := 0; i < 30; i++ {
+		got, _ = os.ReadFile(outPath)
+		if len(got) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	want := "--resume\nhello world\n"
+	if string(got) != want {
+		t.Errorf("recorder got %q, want %q", got, want)
 	}
 }
