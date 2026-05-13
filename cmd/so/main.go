@@ -73,8 +73,19 @@ func runRename(args []string) int {
 	return 0
 }
 
+func runLs(_ []string) int {
+	err := so.Ls(so.DefaultTmux(), sessionName, os.Stdout)
+	if err == so.ErrNoSession {
+		return 1
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "so ls:", err)
+		return 1
+	}
+	return 0
+}
+
 // Stubs — real impls land in later tasks.
-func runLs(args []string) int     { fmt.Fprintln(os.Stderr, "ls: not implemented"); return 1 }
 func runLaunch(agent string, args []string) int {
 	fmt.Fprintln(os.Stderr, "launch: not implemented")
 	return 1
