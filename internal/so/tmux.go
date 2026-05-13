@@ -82,10 +82,13 @@ func (t *Tmux) NewSession(name string) error {
 }
 
 // NewSessionWithWindow creates a detached session whose first window is
-// named windowName and (if cmd is non-empty) runs cmd. Use this from
-// launch logic so the session doesn't end up with a stray default window.
-func (t *Tmux) NewSessionWithWindow(session, windowName, cmd string) error {
+// named windowName and (if cmd is non-empty) runs cmd. env entries like
+// "KEY=value" are set in the new window's process environment via `-e`.
+func (t *Tmux) NewSessionWithWindow(session, windowName, cmd string, env ...string) error {
 	args := []string{"new-session", "-d", "-s", session, "-n", windowName}
+	for _, e := range env {
+		args = append(args, "-e", e)
+	}
 	if cmd != "" {
 		args = append(args, cmd)
 	}
@@ -93,10 +96,13 @@ func (t *Tmux) NewSessionWithWindow(session, windowName, cmd string) error {
 	return err
 }
 
-// NewWindow creates a window in session. If cmd is non-empty, it runs as
-// the window's initial command.
-func (t *Tmux) NewWindow(session, name, cmd string) error {
+// NewWindow creates a window in session. env entries like "KEY=value"
+// are set in the new window's process environment via `-e`.
+func (t *Tmux) NewWindow(session, name, cmd string, env ...string) error {
 	args := []string{"new-window", "-d", "-t", session, "-n", name}
+	for _, e := range env {
+		args = append(args, "-e", e)
+	}
 	if cmd != "" {
 		args = append(args, cmd)
 	}

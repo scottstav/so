@@ -2,6 +2,7 @@ package so
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -68,12 +69,20 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 	}
 	winName := DedupName(opts.Agent+"@new", wins)
 
+	// Propagate the resolved session and any SO_AGENTS_CONF override into
+	// the new pane so agents that spawn peers from this pane (block 4)
+	// stay in the same so-world instead of leaking back to the default.
+	env := []string{"SO_SESSION=" + session}
+	if v := os.Getenv("SO_AGENTS_CONF"); v != "" {
+		env = append(env, "SO_AGENTS_CONF="+v)
+	}
+
 	if !exists {
-		if err := tx.NewSessionWithWindow(session, winName, cmd); err != nil {
+		if err := tx.NewSessionWithWindow(session, winName, cmd, env...); err != nil {
 			return zero, fmt.Errorf("launch: create session: %w", err)
 		}
 	} else {
-		if err := tx.NewWindow(session, winName, cmd); err != nil {
+		if err := tx.NewWindow(session, winName, cmd, env...); err != nil {
 			return zero, fmt.Errorf("launch: new-window: %w", err)
 		}
 	}
