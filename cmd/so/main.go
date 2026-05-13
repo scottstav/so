@@ -61,8 +61,19 @@ func runSend(args []string) int {
 	return 0
 }
 
+func runRename(args []string) int {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: so rename <word>")
+		return 2
+	}
+	if err := so.RenameCurrentWindow(so.DefaultTmux(), sessionName, args[0]); err != nil {
+		fmt.Fprintln(os.Stderr, "so rename:", err)
+		return 1
+	}
+	return 0
+}
+
 // Stubs — real impls land in later tasks.
-func runRename(args []string) int { fmt.Fprintln(os.Stderr, "rename: not implemented"); return 1 }
 func runLs(args []string) int     { fmt.Fprintln(os.Stderr, "ls: not implemented"); return 1 }
 func runLaunch(agent string, args []string) int {
 	fmt.Fprintln(os.Stderr, "launch: not implemented")
