@@ -38,17 +38,21 @@ func printUsage() {
 
 Usage:
   so <agent> [name]       launch an agent (e.g. so claude, so cursor)
-  so send <window> <msg>  feed a prompt to an agent's window
-                          (msg may be passed via stdin if "-" or omitted)
+                          prints the new pane id to stdout
+  so send <target> <msg>  feed a prompt to an agent's pane
+                          <target> = pane id (%42), window (cursor@task), or so:window
+                          <msg> may be passed via stdin if "-" or omitted
+                          waits for the target pane to be idle before delivering
   so rename <word>        rename the calling window's task suffix
-  so ls                   list active agent windows
+  so ls                   list active agent panes (PANE / WINDOW / AGENT / TASK)
   so -h | --help          show this help
 
 Configuration files (auto-created on first run):
   ~/.config/so/agents.conf   agent registry, format: name=command
   ~/.config/so/briefing.md   text injected as the first prompt at launch
 
-The tmux session is named "so". Windows are named "<agent>@<task>".`)
+The tmux session is named "so". Windows are named "<agent>@<task>".
+Pane ids are the stable routing addresses (they survive window renames).`)
 }
 
 func runSend(args []string) int {
@@ -97,18 +101,20 @@ func runLaunch(agent string, _ []string) int {
 	insideTmux := os.Getenv("TMUX") != ""
 
 	tx := so.DefaultTmux()
-	target, err := so.Launch(tx, sessionName, so.LaunchOpts{
+	result, err := so.Launch(tx, sessionName, so.LaunchOpts{
 		Agent:     agent,
-		SkipFocus: !insideTmux, // we'll attach below if outside
+		SkipFocus: !insideTmux,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "so:", err)
 		return 1
 	}
-	fmt.Println(target)
+	// Print the pane id — the stable routing target. Window name is
+	// visible in `so ls`.
+	fmt.Println(result.PaneID)
 
 	if !insideTmux {
-		_ = tx.SelectWindow(target)
+		_ = tx.SelectWindow(result.Target)
 		tmuxBin, err := exec.LookPath("tmux")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "so: tmux not found in PATH:", err)

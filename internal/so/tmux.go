@@ -156,6 +156,22 @@ func (t *Tmux) DisplayMessage(target, format string) (string, error) {
 	return strings.TrimRight(out, "\n"), err
 }
 
+// PaneID returns the immutable pane id (e.g. "%42") for the given target.
+// Pane ids survive window renames, making them the stable routing address.
+func (t *Tmux) PaneID(target string) (string, error) {
+	return t.DisplayMessage(target, "#{pane_id}")
+}
+
+// WindowNameFromPaneID returns the current window name for a pane id.
+func (t *Tmux) WindowNameFromPaneID(paneID string) (string, error) {
+	return t.DisplayMessage(paneID, "#W")
+}
+
+// CapturePane returns the current visible pane contents (no scrollback).
+func (t *Tmux) CapturePane(target string) (string, error) {
+	return t.run("capture-pane", "-p", "-t", target)
+}
+
 // PasteText loads text into a tmux buffer, pastes it into target, then
 // deletes the buffer. The trailing Enter is NOT sent — call SendEnter
 // separately if you want submission.

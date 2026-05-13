@@ -44,18 +44,24 @@ func TestLaunch_CreatesWindowAndDedupes(t *testing.T) {
 		SkipBriefing: true,
 		SkipFocus:    true,
 	}
-	target1, err := Launch(tx, "test-base", opts)
+	r1, err := Launch(tx, "test-base", opts)
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
 	}
-	if !strings.HasSuffix(target1, ":fake@new") {
-		t.Errorf("got target %q, want suffix :fake@new", target1)
+	if !strings.HasSuffix(r1.Target, ":fake@new") {
+		t.Errorf("got target %q, want suffix :fake@new", r1.Target)
 	}
-	target2, err := Launch(tx, "test-base", opts)
+	if r1.PaneID == "" || !strings.HasPrefix(r1.PaneID, "%") {
+		t.Errorf("got PaneID %q, want non-empty starting with %%", r1.PaneID)
+	}
+	r2, err := Launch(tx, "test-base", opts)
 	if err != nil {
 		t.Fatalf("Launch (2nd): %v", err)
 	}
-	if !strings.HasSuffix(target2, ":fake@new-2") {
-		t.Errorf("got target %q, want suffix :fake@new-2", target2)
+	if !strings.HasSuffix(r2.Target, ":fake@new-2") {
+		t.Errorf("got target %q, want suffix :fake@new-2", r2.Target)
+	}
+	if r2.PaneID == r1.PaneID {
+		t.Errorf("expected distinct pane ids, both got %q", r1.PaneID)
 	}
 }
