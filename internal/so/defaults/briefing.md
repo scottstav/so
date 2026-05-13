@@ -57,6 +57,9 @@ its briefing or a prior task.
 pane id to stdout, which you should capture and use as the routing
 target.
 
+**`so brief`** — re-print this briefing. If you've been resumed and
+weren't briefed on launch, or if you want a refresher, run this.
+
 ## Spawning a peer to do a task for you
 
 When you delegate to another agent, include YOUR pane id (`$TMUX_PANE`)

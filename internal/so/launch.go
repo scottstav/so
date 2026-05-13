@@ -28,6 +28,19 @@ type LaunchOpts struct {
 	BriefingDelay time.Duration
 }
 
+// looksLikeResume reports whether the args indicate the agent is being
+// resumed (vs. starting fresh). Currently a simple match on `--resume`
+// in any position — covers Claude Code's flag; extend if other agents
+// gain different conventions.
+func looksLikeResume(args []string) bool {
+	for _, a := range args {
+		if a == "--resume" || strings.HasPrefix(a, "--resume=") || a == "-r" {
+			return true
+		}
+	}
+	return false
+}
+
 // LaunchResult describes a freshly-spawned agent.
 type LaunchResult struct {
 	PaneID string // stable id (e.g. "%42"); preferred routing target
@@ -55,6 +68,13 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 		return zero, fmt.Errorf("launch: internal: tmux is nil")
 	}
 	cmd := buildAgentCommand(baseCmd, opts.ExtraArgs)
+
+	// Resume mode picks up an existing conversation — don't pollute it
+	// with a briefing exchange. Agents can pull the briefing on demand
+	// with `so brief` if they need to remember the conventions.
+	if !opts.SkipBriefing && looksLikeResume(opts.ExtraArgs) {
+		opts.SkipBriefing = true
+	}
 
 	exists, err := tx.SessionExists(session)
 	if err != nil {

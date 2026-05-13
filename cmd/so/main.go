@@ -35,6 +35,8 @@ func main() {
 		os.Exit(runRename(args))
 	case "ls":
 		os.Exit(runLs(args))
+	case "brief":
+		os.Exit(runBrief(args))
 	case "-h", "--help", "help":
 		printUsage()
 		os.Exit(0)
@@ -57,6 +59,7 @@ Usage:
                           waits for the target pane to be idle before delivering
   so rename <word>        rename the calling window's task suffix
   so ls                   list active agent panes (PANE / WINDOW / AGENT / TASK)
+  so brief                print the so briefing (useful for resumed sessions)
   so -h | --help          show this help
 
 Configuration files (auto-created on first run):
@@ -92,6 +95,14 @@ func runRename(args []string) int {
 	}
 	if err := so.RenameCurrentWindow(so.DefaultTmux(), sessionName(), args[0]); err != nil {
 		fmt.Fprintln(os.Stderr, "so rename:", err)
+		return 1
+	}
+	return 0
+}
+
+func runBrief(_ []string) int {
+	if err := so.Brief(os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "so brief:", err)
 		return 1
 	}
 	return 0
