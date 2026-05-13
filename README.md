@@ -2,7 +2,7 @@
 
 Scott's [agent] orchestrator
 
-An opinionated platform for managing coding agents via tmux. like steve yegges gas town but way way /way/ simpler. Like probably not even worth the comparison. But the idea is that I will expand this platform as I work to end up with an agent orchestration system that fits my needs.
+An opinionated platform for managing coding agents via tmux. The idea is to enable agents to spawn new agents and communicate with eachother through tmux send-key.
 
 ## Installation
 
