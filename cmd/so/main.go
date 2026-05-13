@@ -9,7 +9,17 @@ import (
 	"github.com/scottstav/so/internal/so"
 )
 
-const sessionName = "so"
+const defaultSession = "so"
+
+// sessionName resolves the tmux session name. SO_SESSION env var
+// overrides the default — used by sibling launchers like claude-personal
+// to keep their work isolated.
+func sessionName() string {
+	if s := os.Getenv("SO_SESSION"); s != "" {
+		return s
+	}
+	return defaultSession
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -68,7 +78,7 @@ func runSend(args []string) int {
 		fmt.Fprintln(os.Stderr, "so send:", err)
 		return 2
 	}
-	if err := so.SendPrompt(so.DefaultTmux(), sessionName, window, prompt); err != nil {
+	if err := so.SendPrompt(so.DefaultTmux(), sessionName(), window, prompt); err != nil {
 		fmt.Fprintln(os.Stderr, "so send:", err)
 		return 1
 	}
@@ -80,7 +90,7 @@ func runRename(args []string) int {
 		fmt.Fprintln(os.Stderr, "usage: so rename <word>")
 		return 2
 	}
-	if err := so.RenameCurrentWindow(so.DefaultTmux(), sessionName, args[0]); err != nil {
+	if err := so.RenameCurrentWindow(so.DefaultTmux(), sessionName(), args[0]); err != nil {
 		fmt.Fprintln(os.Stderr, "so rename:", err)
 		return 1
 	}
@@ -88,7 +98,7 @@ func runRename(args []string) int {
 }
 
 func runLs(_ []string) int {
-	err := so.Ls(so.DefaultTmux(), sessionName, os.Stdout)
+	err := so.Ls(so.DefaultTmux(), sessionName(), os.Stdout)
 	if err == so.ErrNoSession {
 		return 1
 	}
@@ -107,7 +117,7 @@ func runLaunch(agent string, args []string) int {
 	insideTmux := os.Getenv("TMUX") != ""
 
 	tx := so.DefaultTmux()
-	result, err := so.Launch(tx, sessionName, so.LaunchOpts{
+	result, err := so.Launch(tx, sessionName(), so.LaunchOpts{
 		Agent:     agent,
 		ExtraArgs: args,
 		SkipFocus: !insideTmux,
@@ -127,7 +137,7 @@ func runLaunch(agent string, args []string) int {
 			fmt.Fprintln(os.Stderr, "so: tmux not found in PATH:", err)
 			return 1
 		}
-		if err := syscall.Exec(tmuxBin, []string{"tmux", "attach-session", "-t", sessionName}, os.Environ()); err != nil {
+		if err := syscall.Exec(tmuxBin, []string{"tmux", "attach-session", "-t", sessionName()}, os.Environ()); err != nil {
 			fmt.Fprintln(os.Stderr, "so: exec tmux attach:", err)
 			return 1
 		}

@@ -70,6 +70,35 @@ func TestEnsureDefaults_PreservesExisting(t *testing.T) {
 	}
 }
 
+func TestAgentsConfPath_RespectsOverride(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("SO_AGENTS_CONF", "/custom/path/agents.conf")
+	if got := AgentsConfPath(); got != "/custom/path/agents.conf" {
+		t.Fatalf("AgentsConfPath() = %q, want override path", got)
+	}
+}
+
+func TestEnsureDefaults_IgnoresOverrideForBootstrap(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	customPath := filepath.Join(tmp, "elsewhere", "agents.conf")
+	t.Setenv("SO_AGENTS_CONF", customPath)
+
+	if err := EnsureDefaults(); err != nil {
+		t.Fatalf("EnsureDefaults: %v", err)
+	}
+	// Default location should be bootstrapped
+	defaultPath := filepath.Join(tmp, "so", "agents.conf")
+	if _, err := os.Stat(defaultPath); err != nil {
+		t.Errorf("expected default agents.conf at %s: %v", defaultPath, err)
+	}
+	// Override path should NOT be bootstrapped — user manages it themselves
+	if _, err := os.Stat(customPath); err == nil {
+		t.Errorf("EnsureDefaults wrote to override path %s; should only write to default", customPath)
+	}
+}
+
 func mustRead(t *testing.T, p string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(p)

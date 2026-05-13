@@ -21,20 +21,33 @@ func ConfigDir() string {
 	return filepath.Join(os.Getenv("HOME"), ".config", "so")
 }
 
-// AgentsConfPath returns the path to agents.conf.
-func AgentsConfPath() string { return filepath.Join(ConfigDir(), "agents.conf") }
+// AgentsConfPath returns the path used to READ the agent registry.
+// Honors SO_AGENTS_CONF for swapping in alternate registries (e.g. a
+// personal one); falls back to the canonical default.
+func AgentsConfPath() string {
+	if p := os.Getenv("SO_AGENTS_CONF"); p != "" {
+		return p
+	}
+	return defaultAgentsConfPath()
+}
+
+// defaultAgentsConfPath is the canonical bootstrap location, never
+// affected by env overrides. EnsureDefaults always writes here.
+func defaultAgentsConfPath() string { return filepath.Join(ConfigDir(), "agents.conf") }
 
 // BriefingPath returns the path to briefing.md.
 func BriefingPath() string { return filepath.Join(ConfigDir(), "briefing.md") }
 
-// EnsureDefaults writes the default agents.conf and briefing.md if they
-// don't already exist. Existing files are never overwritten.
+// EnsureDefaults writes the default agents.conf and briefing.md to the
+// canonical paths if they don't already exist. Never overwrites, and
+// never writes to an SO_AGENTS_CONF override location — if you point
+// the override at a custom path, you maintain that file yourself.
 func EnsureDefaults() error {
 	dir := ConfigDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	if err := copyDefaultIfMissing("defaults/agents.conf", AgentsConfPath()); err != nil {
+	if err := copyDefaultIfMissing("defaults/agents.conf", defaultAgentsConfPath()); err != nil {
 		return err
 	}
 	if err := copyDefaultIfMissing("defaults/briefing.md", BriefingPath()); err != nil {
