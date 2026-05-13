@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"syscall"
 
 	"github.com/scottstav/so/internal/so"
 )
@@ -85,8 +87,31 @@ func runLs(_ []string) int {
 	return 0
 }
 
-// Stubs — real impls land in later tasks.
-func runLaunch(agent string, args []string) int {
-	fmt.Fprintln(os.Stderr, "launch: not implemented")
-	return 1
+func runLaunch(agent string, _ []string) int {
+	insideTmux := os.Getenv("TMUX") != ""
+
+	tx := so.DefaultTmux()
+	target, err := so.Launch(tx, sessionName, so.LaunchOpts{
+		Agent:     agent,
+		SkipFocus: !insideTmux, // we'll attach below if outside
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "so:", err)
+		return 1
+	}
+	fmt.Println(target)
+
+	if !insideTmux {
+		_ = tx.SelectWindow(target)
+		tmuxBin, err := exec.LookPath("tmux")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "so: tmux not found in PATH:", err)
+			return 1
+		}
+		if err := syscall.Exec(tmuxBin, []string{"tmux", "attach-session", "-t", sessionName}, os.Environ()); err != nil {
+			fmt.Fprintln(os.Stderr, "so: exec tmux attach:", err)
+			return 1
+		}
+	}
+	return 0
 }
