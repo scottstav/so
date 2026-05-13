@@ -4,6 +4,24 @@ Scott's [agent] orchestrator
 
 An opinianated platform for managing coding agents via tmux.
 
+## Installation
+
+Requires Go 1.26+ and `tmux` on `$PATH`.
+
+```sh
+go install github.com/scottstav/so/cmd/so@latest
+```
+
+This drops the `so` binary in `$(go env GOBIN)` (or `$(go env GOPATH)/bin` if `GOBIN` is unset) — make sure that directory is on your `$PATH`. To pin to a specific release, swap `@latest` for `@v0.0.7`.
+
+Or build from source:
+
+```sh
+git clone https://github.com/scottstav/so
+cd so
+go install ./cmd/so
+```
+
 ## Commands
 
 | Command | Description |
@@ -31,3 +49,14 @@ Config lives under `$XDG_CONFIG_HOME/so` (defaults to `~/.config/so`). Both file
 | `briefing.md` | Markdown text injected as the agent's first prompt at launch. Edit this to change what every agent sees on spawn. |
 
 The agents-config path can be overridden with the `SO_AGENTS_CONF` env var. The tmux session name (default `so`) can be overridden with `SO_SESSION` — useful when running sibling launchers in parallel.
+
+## Releases
+
+Releases are plain git tags following [semver](https://semver.org/) — `vMAJOR.MINOR.PATCH`. To cut a new release:
+
+```sh
+git tag -a v0.0.8 -m "v0.0.8: <one-line summary>"
+git push origin v0.0.8
+```
+
+`go install github.com/scottstav/so/cmd/so@v0.0.8` will then resolve to that tag via the Go module proxy. See the [tags page](https://github.com/scottstav/so/tags) for the full release list.
