@@ -1,0 +1,19 @@
+# Binaries
+/so
+/bin/
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editors / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local-only
+.env
+.env.local
