@@ -24,13 +24,15 @@ go install ./cmd/so
 
 ## Commands
 
+Most commands are run by a "briefed" `so` agent.
+
 | Command | Description |
 | --- | --- |
-| `so <agent> [-- args...]` | Launch an agent in a new tmux window (e.g. `so claude`, `so cursor -- --resume`). Args after `--` pass through verbatim. Prints the new pane id to stdout. |
+| `so <agent> [-- args...]` | Launch an agent in a new tmux window (e.g. `so claude`, `so cursor -- --resume`). Args after `--` pass through verbatim. Prints the new pane id to stdout. This is probably the only command youll ever need to run manually.|
+| `so brief` | Print the so briefing. You might also run this one manually to give an agent access to the system.|
 | `so send <target> <msg>` | Feed a prompt into another pane. `<target>` is a pane id (`%42`), window name (`cursor@task`), or `so:window`. `<msg>` can come from stdin if omitted or `-`. Waits for the target to be idle. |
 | `so rename <word>` | Rename the calling window's task suffix to `<word>`. |
 | `so ls` | List active agent panes — `PANE`, `WINDOW`, `AGENT`, `TASK`. |
-| `so brief` | Print the so briefing (useful when resuming a session). |
 | `so -h`, `so --help` | Show help. |
 
 ## Briefing
