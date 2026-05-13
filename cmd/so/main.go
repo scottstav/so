@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/scottstav/so/internal/so"
 )
 
 const sessionName = "so"
@@ -41,8 +43,25 @@ Usage:
 Config: ~/.config/so/agents.conf and ~/.config/so/briefing.md`)
 }
 
+func runSend(args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: so send <window> [<prompt>]")
+		return 2
+	}
+	window := args[0]
+	prompt, err := so.PromptFromArgsOrStdin(args[1:], os.Stdin)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "so send:", err)
+		return 2
+	}
+	if err := so.SendPrompt(so.DefaultTmux(), sessionName, window, prompt); err != nil {
+		fmt.Fprintln(os.Stderr, "so send:", err)
+		return 1
+	}
+	return 0
+}
+
 // Stubs — real impls land in later tasks.
-func runSend(args []string) int   { fmt.Fprintln(os.Stderr, "send: not implemented"); return 1 }
 func runRename(args []string) int { fmt.Fprintln(os.Stderr, "rename: not implemented"); return 1 }
 func runLs(args []string) int     { fmt.Fprintln(os.Stderr, "ls: not implemented"); return 1 }
 func runLaunch(agent string, args []string) int {
