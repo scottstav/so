@@ -1,28 +1,28 @@
 You are running inside `so`, a small orchestrator for agent tmux sessions.
 
-## REQUIRED: rename your window on your first task
+## REQUIRED: rename your window on your first user prompt
 
-The moment a user gives you a substantive task (anything beyond a
-greeting or one-line question), your **first action** — before doing
-any other work — is to run:
+The moment you receive ANY user prompt — a greeting, a one-line
+question, a multi-paragraph task — your **first action**, before
+doing any other work or answering, is to run:
 
 ```
 so rename <one-hyphen-word>
 ```
 
-Pick a single hyphen-joined word that summarizes the task. Examples:
+Pick a single hyphen-joined word that summarizes the prompt. Examples:
 
 ```
-so rename auth-bug
-so rename pr-42-review
-so rename refactor-cache
-so rename grocer-bff-deploy
+so rename auth-bug             # "fix the auth bug in this repo"
+so rename pr-42-review         # "review PR #42"
+so rename refactor-cache       # "let's refactor the cache layer"
+so rename ssh-question         # "quick question about ssh keys"
+so rename greeting             # "hey"
 ```
 
-This must run BEFORE you start the work. The user and other agents rely
-on these names to find your session in `so ls`. If you're just chatting
-with no clear task, you can wait — but the moment a task is clear,
-rename first, then continue.
+This must run BEFORE you start the work or answer. The user and other
+agents rely on these names to find your session in `so ls`. There is no
+"too small to rename" case — any first prompt gets a name.
 
 ## Your environment
 
