@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/scottstav/so/internal/so"
@@ -49,7 +50,12 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `so — Scott's orchestrator. Launches CLI agents in a shared tmux session.
 
 Usage:
-  so <agent> [-- args...] launch an agent (e.g. so claude, so cursor --resume)
+  so <agent> [so-flags] [-- agent-args...]
+                          launch an agent (e.g. so claude, so cursor --resume).
+                          so-flags (before any '--') control the launch:
+                            -C, --cwd <dir>  start the agent in <dir>
+                            --no-attach      don't tmux-attach the caller after
+                                             spawning (useful for scripts/keybinds)
                           args after the optional '--' are passed verbatim
                           to the agent's command (e.g. claude --resume).
                           prints the new pane id to stdout.
@@ -120,17 +126,58 @@ func runLs(_ []string) int {
 	return 0
 }
 
+// launchFlags captures the so-side flags parsed off the front of
+// `so <agent> ...` (everything before an explicit `--` separator).
+type launchFlags struct {
+	Cwd      string
+	NoAttach bool
+}
+
+// parseLaunchFlags consumes leading so-flags from args and returns the
+// flags plus the remaining args (which are forwarded to the agent).
+// An explicit `--` terminates so-flag parsing and is stripped. The
+// first arg that isn't a known so-flag also terminates parsing (so
+// `so claude --resume` continues to work without `--`).
+func parseLaunchFlags(args []string) (launchFlags, []string, error) {
+	var f launchFlags
+	i := 0
+	for i < len(args) {
+		a := args[i]
+		switch {
+		case a == "--":
+			return f, args[i+1:], nil
+		case a == "--no-attach":
+			f.NoAttach = true
+			i++
+		case a == "-C" || a == "--cwd":
+			if i+1 >= len(args) {
+				return f, nil, fmt.Errorf("%s requires a directory argument", a)
+			}
+			f.Cwd = args[i+1]
+			i += 2
+		case strings.HasPrefix(a, "--cwd="):
+			f.Cwd = strings.TrimPrefix(a, "--cwd=")
+			i++
+		default:
+			return f, args[i:], nil
+		}
+	}
+	return f, nil, nil
+}
+
 func runLaunch(agent string, args []string) int {
-	// Optional `--` separator: `so claude -- --resume`. Strip if present.
-	if len(args) > 0 && args[0] == "--" {
-		args = args[1:]
+	flags, agentArgs, err := parseLaunchFlags(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "so:", err)
+		return 2
 	}
 	insideTmux := os.Getenv("TMUX") != ""
 
 	tx := so.DefaultTmux()
 	result, err := so.Launch(tx, sessionName(), so.LaunchOpts{
 		Agent:     agent,
-		ExtraArgs: args,
+		ExtraArgs: agentArgs,
+		Cwd:       flags.Cwd,
 		SkipFocus: !insideTmux,
 	})
 	if err != nil {
@@ -141,7 +188,7 @@ func runLaunch(agent string, args []string) int {
 	// visible in `so ls`.
 	fmt.Println(result.PaneID)
 
-	if !insideTmux {
+	if !insideTmux && !flags.NoAttach {
 		_ = tx.SelectWindow(result.Target)
 		tmuxBin, err := exec.LookPath("tmux")
 		if err != nil {
@@ -152,6 +199,11 @@ func runLaunch(agent string, args []string) int {
 			fmt.Fprintln(os.Stderr, "so: exec tmux attach:", err)
 			return 1
 		}
+	}
+	if flags.NoAttach {
+		// Still select the new window so existing clients on the session
+		// see it become active. Best-effort; ignore errors.
+		_ = tx.SelectWindow(result.Target)
 	}
 	return 0
 }

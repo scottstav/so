@@ -16,6 +16,12 @@ type LaunchOpts struct {
 	// the command "claude --resume" inside the new tmux window.
 	ExtraArgs []string
 
+	// Cwd, when set, becomes the start directory of the new tmux
+	// window (passed through as `tmux new-window -c <cwd>`). Empty
+	// means tmux's default (current pane's dir or the session's
+	// start-directory).
+	Cwd string
+
 	// SkipBriefing skips post-launch briefing injection. Used in tests
 	// where the spawned command is not an interactive TUI.
 	SkipBriefing bool
@@ -98,11 +104,11 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 	}
 
 	if !exists {
-		if err := tx.NewSessionWithWindow(session, winName, cmd, env...); err != nil {
+		if err := tx.NewSessionWithWindowAt(session, winName, opts.Cwd, cmd, env...); err != nil {
 			return zero, fmt.Errorf("launch: create session: %w", err)
 		}
 	} else {
-		if err := tx.NewWindow(session, winName, cmd, env...); err != nil {
+		if err := tx.NewWindowAt(session, winName, opts.Cwd, cmd, env...); err != nil {
 			return zero, fmt.Errorf("launch: new-window: %w", err)
 		}
 	}

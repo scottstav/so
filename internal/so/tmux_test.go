@@ -2,8 +2,11 @@ package so
 
 import (
 	"errors"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
+	"time"
 )
 
 func requireTmux(t *testing.T) {
@@ -113,6 +116,60 @@ func TestTmux_WindowExists(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("expected nope@nope NOT to exist")
+	}
+}
+
+func TestTmux_NewWindowAt_SetsStartDir(t *testing.T) {
+	tx, teardown := withFreshSession(t)
+	defer teardown()
+
+	cwd := t.TempDir()
+	out := cwd + "/pwd.txt"
+	// Spawn a shell that records its cwd, then sleeps so the pane stays
+	// alive long enough for `display-message` lookups if we ever want them.
+	cmd := "pwd > " + out + "; sleep 5"
+	if err := tx.NewWindowAt("test-base", "claude@new", cwd, "bash -lc "+shellQuote(cmd)); err != nil {
+		t.Fatalf("NewWindowAt: %v", err)
+	}
+	var got []byte
+	for i := 0; i < 40; i++ {
+		got, _ = os.ReadFile(out)
+		if len(got) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	want := cwd + "\n"
+	if string(got) != want {
+		// On macOS /tmp is symlinked to /private/tmp; tolerate that.
+		if strings.TrimSpace(string(got)) != strings.TrimSpace(cwd) {
+			t.Errorf("new window pwd = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestTmux_NewSessionWithWindowAt_SetsStartDir(t *testing.T) {
+	requireTmux(t)
+	sock := t.TempDir() + "/sock"
+	tx := &Tmux{Socket: sock}
+	defer func() { _ = exec.Command("tmux", "-S", sock, "kill-server").Run() }()
+
+	cwd := t.TempDir()
+	out := cwd + "/pwd.txt"
+	cmd := "pwd > " + out + "; sleep 5"
+	if err := tx.NewSessionWithWindowAt("fresh", "claude@new", cwd, "bash -lc "+shellQuote(cmd)); err != nil {
+		t.Fatalf("NewSessionWithWindowAt: %v", err)
+	}
+	var got []byte
+	for i := 0; i < 40; i++ {
+		got, _ = os.ReadFile(out)
+		if len(got) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if strings.TrimSpace(string(got)) != strings.TrimSpace(cwd) {
+		t.Errorf("new session window pwd = %q, want %q", got, cwd)
 	}
 }
 

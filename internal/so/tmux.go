@@ -85,7 +85,16 @@ func (t *Tmux) NewSession(name string) error {
 // named windowName and (if cmd is non-empty) runs cmd. env entries like
 // "KEY=value" are set in the new window's process environment via `-e`.
 func (t *Tmux) NewSessionWithWindow(session, windowName, cmd string, env ...string) error {
+	return t.NewSessionWithWindowAt(session, windowName, "", cmd, env...)
+}
+
+// NewSessionWithWindowAt is like NewSessionWithWindow but sets the
+// window's start directory via tmux's `-c` flag when cwd is non-empty.
+func (t *Tmux) NewSessionWithWindowAt(session, windowName, cwd, cmd string, env ...string) error {
 	args := []string{"new-session", "-d", "-s", session, "-n", windowName}
+	if cwd != "" {
+		args = append(args, "-c", cwd)
+	}
 	for _, e := range env {
 		args = append(args, "-e", e)
 	}
@@ -99,7 +108,16 @@ func (t *Tmux) NewSessionWithWindow(session, windowName, cmd string, env ...stri
 // NewWindow creates a window in session. env entries like "KEY=value"
 // are set in the new window's process environment via `-e`.
 func (t *Tmux) NewWindow(session, name, cmd string, env ...string) error {
+	return t.NewWindowAt(session, name, "", cmd, env...)
+}
+
+// NewWindowAt is like NewWindow but sets the window's start directory
+// via tmux's `-c` flag when cwd is non-empty.
+func (t *Tmux) NewWindowAt(session, name, cwd, cmd string, env ...string) error {
 	args := []string{"new-window", "-d", "-t", session, "-n", name}
+	if cwd != "" {
+		args = append(args, "-c", cwd)
+	}
 	for _, e := range env {
 		args = append(args, "-e", e)
 	}
