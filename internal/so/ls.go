@@ -65,8 +65,9 @@ func Ls(tx *Tmux, session string, w io.Writer) error {
 		return ErrNoSession
 	}
 	// Use a combined list-windows format so we get windows and pane ids
-	// in one tmux call, in matching order.
-	out, err := tx.run("list-windows", "-t", session, "-F", "#W\t#{pane_id}")
+	// in one tmux call, in matching order. The `=` prefix forces an exact
+	// session match so a query for "so" doesn't pick up "so-personal".
+	out, err := tx.run("list-windows", "-t", "="+session, "-F", "#W\t#{pane_id}")
 	if err != nil {
 		return err
 	}

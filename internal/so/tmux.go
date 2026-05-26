@@ -5,10 +5,40 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"slices"
 	"strings"
 )
+
+// soScopedEnvVars select the so "world" — which tmux session and which agent
+// registry an invocation belongs to. They must never leak into the tmux
+// SERVER-GLOBAL environment: tmux seeds its global env from the process that
+// first starts the server, so if `so` is invoked by the personal launcher
+// (which exports these) and happens to start the server, every later session —
+// including the default/work one — would inherit the personal values and spawn
+// children into the wrong account. Panes receive the correct values explicitly
+// per-window via `-e`, so stripping them from the tmux child env is safe.
+var soScopedEnvVars = []string{"SO_SESSION", "SO_AGENTS_CONF"}
+
+// scrubSoVars returns environ with the so-scoped vars removed. The input slice
+// is not mutated.
+func scrubSoVars(environ []string) []string {
+	out := make([]string, 0, len(environ))
+	for _, e := range environ {
+		drop := false
+		for _, k := range soScopedEnvVars {
+			if strings.HasPrefix(e, k+"=") {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			out = append(out, e)
+		}
+	}
+	return out
+}
 
 // ErrTmuxUnavailable is returned when the tmux binary cannot be invoked.
 var ErrTmuxUnavailable = errors.New("tmux unavailable")
@@ -36,7 +66,12 @@ func (t *Tmux) cmd(args ...string) *exec.Cmd {
 		full = append(full, "-S", t.Socket)
 	}
 	full = append(full, args...)
-	return exec.Command(t.bin(), full...)
+	c := exec.Command(t.bin(), full...)
+	// Hand tmux a scrubbed environment so the so-scoped vars never seed the
+	// server-global env (see soScopedEnvVars). `so` itself still reads them
+	// via os.Getenv; only the tmux child is scrubbed.
+	c.Env = scrubSoVars(os.Environ())
+	return c
 }
 
 func (t *Tmux) run(args ...string) (string, error) {
@@ -57,8 +92,12 @@ func (t *Tmux) run(args ...string) (string, error) {
 }
 
 // SessionExists returns true if the named session exists.
+//
+// The target uses tmux's exact-match prefix (`=`) so a session named "so"
+// is not matched by an existing session named "so-personal" (tmux's
+// default `-t` does prefix matching, which is rarely what we want here).
 func (t *Tmux) SessionExists(name string) (bool, error) {
-	c := t.cmd("has-session", "-t", name)
+	c := t.cmd("has-session", "-t", "="+name)
 	c.Stderr = io.Discard
 	err := c.Run()
 	if err == nil {
@@ -113,8 +152,11 @@ func (t *Tmux) NewWindow(session, name, cmd string, env ...string) error {
 
 // NewWindowAt is like NewWindow but sets the window's start directory
 // via tmux's `-c` flag when cwd is non-empty.
+//
+// The session target uses tmux's exact-match prefix (`=`) to avoid the
+// prefix-matching behavior of `-t` (e.g. "so" matching "so-personal").
 func (t *Tmux) NewWindowAt(session, name, cwd, cmd string, env ...string) error {
-	args := []string{"new-window", "-d", "-t", session, "-n", name}
+	args := []string{"new-window", "-d", "-t", "=" + session, "-n", name}
 	if cwd != "" {
 		args = append(args, "-c", cwd)
 	}
@@ -129,8 +171,12 @@ func (t *Tmux) NewWindowAt(session, name, cwd, cmd string, env ...string) error 
 }
 
 // ListWindows returns the window names in a session.
+//
+// The target uses tmux's exact-match prefix (`=`) so a query for "so"
+// doesn't accidentally return windows from "so-personal" (or any other
+// session whose name happens to start with the queried name).
 func (t *Tmux) ListWindows(session string) ([]string, error) {
-	out, err := t.run("list-windows", "-t", session, "-F", "#W")
+	out, err := t.run("list-windows", "-t", "="+session, "-F", "#W")
 	if err != nil {
 		return nil, err
 	}
@@ -163,8 +209,12 @@ func (t *Tmux) SelectWindow(target string) error {
 }
 
 // SwitchClient switches the current client to the named session.
+//
+// The target uses tmux's exact-match prefix (`=`) so a request to attach
+// to "so" doesn't end up landing the client on "so-personal" via tmux's
+// default prefix matching.
 func (t *Tmux) SwitchClient(session string) error {
-	_, err := t.run("switch-client", "-t", session)
+	_, err := t.run("switch-client", "-t", "="+session)
 	return err
 }
 

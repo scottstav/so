@@ -9,6 +9,67 @@ import (
 	"time"
 )
 
+func TestScrubSoVars(t *testing.T) {
+	in := []string{
+		"PATH=/usr/bin",
+		"SO_SESSION=so-personal",
+		"HOME=/home/x",
+		"SO_AGENTS_CONF=/home/x/.config/so/personal-agents.conf",
+		"FOO=SO_SESSION=not-a-real-prefix",
+	}
+	got := scrubSoVars(in)
+	for _, e := range got {
+		if strings.HasPrefix(e, "SO_SESSION=") || strings.HasPrefix(e, "SO_AGENTS_CONF=") {
+			t.Errorf("scrubSoVars left a so-scoped var: %q", e)
+		}
+	}
+	want := []string{
+		"PATH=/usr/bin",
+		"HOME=/home/x",
+		"FOO=SO_SESSION=not-a-real-prefix", // value containing the key is kept
+	}
+	if len(got) != len(want) {
+		t.Fatalf("scrubSoVars returned %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("scrubSoVars[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// TestNewSession_NoSoVarLeakToGlobalEnv pins down the core account-separation
+// fix: the tmux server seeds its GLOBAL environment from the process that
+// first starts it. When `so` is invoked by the personal launcher (which
+// exports SO_SESSION / SO_AGENTS_CONF) and happens to start the server, those
+// personal values must NOT become the server-global default — otherwise every
+// later session, including the default/work one, inherits the personal agent
+// registry and spawns children into the wrong account.
+func TestNewSession_NoSoVarLeakToGlobalEnv(t *testing.T) {
+	requireTmux(t)
+	t.Setenv("SO_SESSION", "so-personal")
+	t.Setenv("SO_AGENTS_CONF", "/home/x/.config/so/personal-agents.conf")
+
+	sock := t.TempDir() + "/sock"
+	tx := &Tmux{Socket: sock}
+	defer func() { _ = exec.Command("tmux", "-S", sock, "kill-server").Run() }()
+
+	// NewSession starts the server; its global env is seeded here.
+	if err := tx.NewSession("test-base"); err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	out, err := tx.run("show-environment", "-g")
+	if err != nil {
+		t.Fatalf("show-environment -g: %v", err)
+	}
+	if strings.Contains(out, "SO_AGENTS_CONF") {
+		t.Errorf("SO_AGENTS_CONF leaked into tmux server-global env:\n%s", out)
+	}
+	if strings.Contains(out, "SO_SESSION") {
+		t.Errorf("SO_SESSION leaked into tmux server-global env:\n%s", out)
+	}
+}
+
 func requireTmux(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -48,6 +109,60 @@ func TestTmux_SessionLifecycle(t *testing.T) {
 	}
 	if exists {
 		t.Fatal("expected nope session NOT to exist")
+	}
+}
+
+// TestTmux_SessionExists_NoPrefixMatch pins down that SessionExists
+// requires an exact match — tmux's default `-t` does prefix matching,
+// which previously caused queries for "so" to succeed when only
+// "so-personal" was running (and downstream new-window calls would
+// then land in the wrong session).
+func TestTmux_SessionExists_NoPrefixMatch(t *testing.T) {
+	requireTmux(t)
+	sock := t.TempDir() + "/sock"
+	tx := &Tmux{Socket: sock}
+	defer func() { _ = exec.Command("tmux", "-S", sock, "kill-server").Run() }()
+
+	if err := tx.NewSession("so-personal"); err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+
+	exists, err := tx.SessionExists("so")
+	if err != nil {
+		t.Fatalf("SessionExists: %v", err)
+	}
+	if exists {
+		t.Fatal(`expected "so" NOT to exist when only "so-personal" is running ` +
+			`(tmux prefix match leak — see cc-picker bug)`)
+	}
+
+	exists, err = tx.SessionExists("so-personal")
+	if err != nil {
+		t.Fatalf("SessionExists: %v", err)
+	}
+	if !exists {
+		t.Fatal(`expected exact "so-personal" lookup to succeed`)
+	}
+}
+
+// TestTmux_ListWindows_NoPrefixMatch ensures ListWindows also requires
+// an exact session match — same bug class as SessionExists.
+func TestTmux_ListWindows_NoPrefixMatch(t *testing.T) {
+	requireTmux(t)
+	sock := t.TempDir() + "/sock"
+	tx := &Tmux{Socket: sock}
+	defer func() { _ = exec.Command("tmux", "-S", sock, "kill-server").Run() }()
+
+	if err := tx.NewSession("so-personal"); err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	if err := tx.NewWindow("so-personal", "claude@personal", ""); err != nil {
+		t.Fatalf("NewWindow: %v", err)
+	}
+
+	// Listing "so" must NOT return "so-personal"'s windows.
+	if _, err := tx.ListWindows("so"); err == nil {
+		t.Fatal(`expected ListWindows("so") to error when only "so-personal" exists`)
 	}
 }
 

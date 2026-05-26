@@ -2,7 +2,6 @@ package so
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 )
@@ -95,12 +94,16 @@ func Launch(tx *Tmux, session string, opts LaunchOpts) (LaunchResult, error) {
 	}
 	winName := DedupName(opts.Agent+"@new", wins)
 
-	// Propagate the resolved session and any SO_AGENTS_CONF override into
-	// the new pane so agents that spawn peers from this pane (block 4)
-	// stay in the same so-world instead of leaking back to the default.
-	env := []string{"SO_SESSION=" + session}
-	if v := os.Getenv("SO_AGENTS_CONF"); v != "" {
-		env = append(env, "SO_AGENTS_CONF="+v)
+	// Pin the resolved session AND the resolved agent-registry path into the
+	// new pane, the same way, so an agent that spawns peers from this pane
+	// (block 4) stays in the same so-world. Pinning the *resolved* registry
+	// (AgentsConfPath, which is what LoadAgents just read) — rather than
+	// merely forwarding an ambient SO_AGENTS_CONF when present — means a work
+	// pane is explicitly held on the work/default registry and can't silently
+	// inherit a personal value that leaked into the tmux global/session env.
+	env := []string{
+		"SO_SESSION=" + session,
+		"SO_AGENTS_CONF=" + AgentsConfPath(),
 	}
 
 	if !exists {

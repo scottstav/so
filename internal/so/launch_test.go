@@ -67,6 +67,61 @@ func TestLaunch_CreatesWindowAndDedupes(t *testing.T) {
 	}
 }
 
+// TestLaunch_PinsSessionAndAgentsConf proves the spawned pane gets BOTH the
+// resolved session and the resolved agent-registry path pinned explicitly via
+// the window environment — not left to inherit whatever stale value happens to
+// be in the tmux global/session env. This is what keeps a work pane on the
+// work registry even if a personal SO_AGENTS_CONF has leaked into a parent env.
+func TestLaunch_PinsSessionAndAgentsConf(t *testing.T) {
+	tx, teardown := withFreshSession(t)
+	defer teardown()
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	// No ambient override: this is the work/default case. AgentsConfPath()
+	// therefore resolves to the canonical default registry.
+	os.Unsetenv("SO_AGENTS_CONF")
+	if err := EnsureDefaults(); err != nil {
+		t.Fatal(err)
+	}
+
+	scriptDir := t.TempDir()
+	scriptPath := scriptDir + "/recorder"
+	outPath := scriptDir + "/env.txt"
+	script := "#!/bin/bash\n{ echo \"SO_SESSION=$SO_SESSION\"; echo \"SO_AGENTS_CONF=$SO_AGENTS_CONF\"; } > " +
+		outPath + "\nsleep 10\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(AgentsConfPath(), []byte("rec="+scriptPath+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Launch(tx, "test-base", LaunchOpts{
+		Agent:        "rec",
+		SkipBriefing: true,
+		SkipFocus:    true,
+	}); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+
+	var got []byte
+	for i := 0; i < 30; i++ {
+		got, _ = os.ReadFile(outPath)
+		if len(got) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	wantSession := "SO_SESSION=test-base"
+	wantConf := "SO_AGENTS_CONF=" + AgentsConfPath()
+	if !strings.Contains(string(got), wantSession) {
+		t.Errorf("recorder env missing %q; got:\n%s", wantSession, got)
+	}
+	if !strings.Contains(string(got), wantConf) {
+		t.Errorf("recorder env missing %q; got:\n%s", wantConf, got)
+	}
+}
+
 func TestLaunch_PassesExtraArgs(t *testing.T) {
 	tx, teardown := withFreshSession(t)
 	defer teardown()
